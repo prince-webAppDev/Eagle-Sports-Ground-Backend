@@ -28,6 +28,9 @@ const updateCareerStats = async (performances) => {
           // Increment dismissal count only if the player was dismissed
           total_innings_dismissed: perf.was_dismissed ? 1 : 0,
         },
+        $max: {
+          highest_score: perf.runs_scored || 0,
+        },
       },
     },
   }));

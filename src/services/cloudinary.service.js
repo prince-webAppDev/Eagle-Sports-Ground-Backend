@@ -11,21 +11,28 @@ const streamifier = require('streamifier');
  */
 const uploadToCloudinary = (buffer, folder) => {
   return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: 'image',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve({ secure_url: result.secure_url, public_id: result.public_id });
-      }
-    );
+    try {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          resource_type: 'image',
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve({ secure_url: result.secure_url, public_id: result.public_id });
+        }
+      );
 
-    // Convert buffer to readable stream and pipe into Cloudinary
-    streamifier.createReadStream(buffer).pipe(uploadStream);
+      // Handle stream errors to prevent unhandled rejections
+      uploadStream.on('error', (err) => {
+        reject(err);
+      });
+
+      // Convert buffer to readable stream and pipe into Cloudinary
+      streamifier.createReadStream(buffer).pipe(uploadStream);
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 

@@ -5,6 +5,7 @@ const {
   getAllMatches,
   getMatchById,
   finalizeMatch,
+  updateScore,
   deleteMatch,
 } = require('../controllers/match.controller');
 const { protect } = require('../middlewares/auth.middleware');
@@ -14,6 +15,9 @@ router.use(protect);
 router.route('/').get(getAllMatches).post(createMatch);
 
 router.route('/:id').get(getMatchById).delete(deleteMatch);
+
+// PATCH /api/matches/:id/score — update live score
+router.patch('/:id/score', updateScore);
 
 // PATCH /api/matches/:id/finalize — submit scorecard + trigger stat automation
 router.patch('/:id/finalize', finalizeMatch);

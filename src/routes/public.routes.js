@@ -4,6 +4,8 @@ const {
   getPublicMatches,
   getPublicMatchById,
   getLeaderboard,
+  getPublicTeams,
+  getTournamentInfo,
 } = require('../controllers/public.controller');
 const { apiLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -18,5 +20,11 @@ router.get('/match/:id', getPublicMatchById);
 
 // GET /api/public/leaderboard         — top batsmen + top bowlers
 router.get('/leaderboard', getLeaderboard);
+
+// GET /api/public/teams               — all teams for display
+router.get('/teams', getPublicTeams);
+
+// GET /api/public/tournament           — tournament overview
+router.get('/tournament', getTournamentInfo);
 
 module.exports = router;

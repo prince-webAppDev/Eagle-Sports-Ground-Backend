@@ -20,8 +20,9 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Catch any unhandled promise rejections (prevents silent failures)
 process.on('unhandledRejection', (reason) => {
   console.error('[Server] Unhandled Promise Rejection:', reason);
-  // In production it is safer to exit and let the process manager restart
-  process.exit(1);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });
 
 // ---------------------------------------------------------------------------

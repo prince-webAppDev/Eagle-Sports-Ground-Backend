@@ -10,6 +10,15 @@ const teamSchema = new mongoose.Schema(
       minlength: [2, 'Team name must be at least 2 characters'],
       maxlength: [100, 'Team name cannot exceed 100 characters'],
     },
+    short_name: {
+      type: String,
+      trim: true,
+      maxlength: [10, 'Short name cannot exceed 10 characters'],
+    },
+    city: {
+      type: String,
+      trim: true,
+    },
     logo_url: {
       type: String,
       default: null,
@@ -25,6 +34,13 @@ const teamSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 );
+
+// Virtual for players count
+teamSchema.virtual('players', {
+  ref: 'Player',
+  localField: '_id',
+  foreignField: 'team_id',
+});
 
 // ---------------------------------------------------------------------------
 // Cascading Delete: Remove all players when a team is deleted.

@@ -45,6 +45,7 @@ const playerSchema = new mongoose.Schema(
     total_innings_dismissed: { type: Number, default: 0, min: 0 },
     // Tracks runs conceded while bowling (used for bowling avg)
     total_runs_conceded: { type: Number, default: 0, min: 0 },
+    highest_score: { type: Number, default: 0, min: 0 },
     matches_played: { type: Number, default: 0, min: 0 },
   },
   {
@@ -57,6 +58,22 @@ const playerSchema = new mongoose.Schema(
 // ---------------------------------------------------------------------------
 // Virtual Fields — computed on-the-fly, never stored in the DB
 // ---------------------------------------------------------------------------
+
+/**
+ * Economy Rate = runs_conceded / overs_bowled
+ * Returns null when the player has not bowled any overs yet.
+ */
+playerSchema.virtual('economy_rate').get(function () {
+  if (!this.total_overs_bowled || this.total_overs_bowled === 0) return null;
+
+  // Convert overs like 10.2 to actual decimal overs (10.333)
+  const fullOvers = Math.floor(this.total_overs_bowled);
+  const balls = Math.round((this.total_overs_bowled % 1) * 10);
+  const actualOvers = fullOvers + (balls / 6);
+
+  if (actualOvers === 0) return null;
+  return parseFloat((this.total_runs_conceded / actualOvers).toFixed(2));
+});
 
 /**
  * Strike Rate = (runs / balls_faced) * 100

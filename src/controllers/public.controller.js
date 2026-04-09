@@ -1,4 +1,5 @@
 const Match = require('../models/Match.model');
+const Team = require('../models/Team.model');
 const Player = require('../models/Player.model');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
@@ -84,8 +85,8 @@ const getLeaderboard = asyncHandler(async (_req, res) => {
   const players = await Player.find()
     .select(
       'name image_url position team_id total_runs total_balls_faced ' +
-        'total_wickets_taken total_overs_bowled total_innings_dismissed ' +
-        'total_runs_conceded matches_played'
+      'total_wickets_taken total_overs_bowled total_innings_dismissed ' +
+      'total_runs_conceded matches_played'
     )
     .populate('team_id', 'name logo_url')
     .lean({ virtuals: true }); // lean + virtuals: attach computed fields
@@ -133,4 +134,41 @@ const getLeaderboard = asyncHandler(async (_req, res) => {
   );
 });
 
-module.exports = { getPublicMatches, getPublicMatchById, getLeaderboard };
+// ---------------------------------------------------------------------------
+// GET /api/public/teams
+// Returns all teams for public display
+// ---------------------------------------------------------------------------
+const getPublicTeams = asyncHandler(async (_req, res) => {
+  const teams = await Team.find().sort({ name: 1 }).populate('players');
+  return res
+    .status(200)
+    .json(new ApiResponse(200, 'Teams retrieved.', teams));
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/public/tournament
+// Returns static or dynamic tournament info
+// ---------------------------------------------------------------------------
+const getTournamentInfo = asyncHandler(async (_req, res) => {
+  // Can be moved to a Database model later
+  const info = {
+    name: 'Eagle Sports Championship',
+    season: '2026',
+    startDate: '2026-04-01',
+    endDate: '2026-05-30',
+    totalTeams: 8,
+    totalMatches: 24,
+  };
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, 'Tournament info retrieved.', info));
+});
+
+module.exports = {
+  getPublicMatches,
+  getPublicMatchById,
+  getLeaderboard,
+  getPublicTeams,
+  getTournamentInfo,
+};

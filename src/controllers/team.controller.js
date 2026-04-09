@@ -9,7 +9,7 @@ const asyncHandler = require('../utils/asyncHandler');
 // Create a team with an optional logo upload
 // ---------------------------------------------------------------------------
 const createTeam = asyncHandler(async (req, res) => {
-  const { name } = req.body;
+  const { name, short_name, shortName, city, homeGround } = req.body;
 
   if (!name) {
     throw new ApiError(400, 'Team name is required.');
@@ -19,12 +19,23 @@ const createTeam = asyncHandler(async (req, res) => {
   let logo_public_id = null;
 
   if (req.file) {
-    const result = await uploadToCloudinary(req.file.buffer, 'cricket/teams');
-    logo_url = result.secure_url;
-    logo_public_id = result.public_id;
+    try {
+      const result = await uploadToCloudinary(req.file.buffer, 'cricket/teams');
+      logo_url = result.secure_url;
+      logo_public_id = result.public_id;
+    } catch (err) {
+      console.error(`[Cloudinary] Upload failed: ${err.message}`);
+      // We continue without a logo instead of failing the whole request
+    }
   }
 
-  const team = await Team.create({ name, logo_url, logo_public_id });
+  const team = await Team.create({
+    name,
+    short_name: short_name || shortName,
+    city: city || homeGround,
+    logo_url,
+    logo_public_id
+  });
 
   return res
     .status(201)
@@ -36,7 +47,7 @@ const createTeam = asyncHandler(async (req, res) => {
 // List all teams
 // ---------------------------------------------------------------------------
 const getAllTeams = asyncHandler(async (_req, res) => {
-  const teams = await Team.find().sort({ createdAt: -1 });
+  const teams = await Team.find().sort({ createdAt: -1 }).populate('players');
   return res
     .status(200)
     .json(new ApiResponse(200, 'Teams retrieved.', teams));
@@ -47,7 +58,7 @@ const getAllTeams = asyncHandler(async (_req, res) => {
 // Get a single team by ID
 // ---------------------------------------------------------------------------
 const getTeamById = asyncHandler(async (req, res) => {
-  const team = await Team.findById(req.params.id);
+  const team = await Team.findById(req.params.id).populate('players');
   if (!team) throw new ApiError(404, 'Team not found.');
 
   return res.status(200).json(new ApiResponse(200, 'Team retrieved.', team));
@@ -63,6 +74,12 @@ const updateTeam = asyncHandler(async (req, res) => {
 
   if (req.body.name) {
     team.name = req.body.name;
+  }
+  if (req.body.short_name || req.body.shortName) {
+    team.short_name = req.body.short_name || req.body.shortName;
+  }
+  if (req.body.city || req.body.homeGround) {
+    team.city = req.body.city || req.body.homeGround;
   }
 
   if (req.file) {

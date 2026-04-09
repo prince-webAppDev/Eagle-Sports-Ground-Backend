@@ -9,29 +9,43 @@ const asyncHandler = require('../utils/asyncHandler');
 // POST /api/players
 // ---------------------------------------------------------------------------
 const createPlayer = asyncHandler(async (req, res) => {
-  const { team_id, name, position } = req.body;
+  const { team_id, teamId, name, position, profile, role } = req.body;
+  const tid = team_id || teamId;
+  let pos = position || profile || role;
 
-  if (!team_id || !name || !position) {
-    throw new ApiError(400, 'team_id, name, and position are required.');
+  if (!tid || !name || !pos) {
+    throw new ApiError(400, 'Team, Name, and Position are required.');
   }
 
+  // Normalize position to Title Case (e.g., 'batsman' -> 'Batsman')
+  pos = pos.trim();
+  pos = pos.charAt(0).toUpperCase() + pos.slice(1).toLowerCase();
+
+  // Also handle some common variants like 'All rounder' -> 'All-Rounder'
+  if (pos === 'All rounder') pos = 'All-Rounder';
+  if (pos === 'Wicket keeper') pos = 'Wicket-Keeper';
+
   // Verify the referenced team actually exists
-  const teamExists = await Team.findById(team_id);
+  const teamExists = await Team.findById(tid);
   if (!teamExists) throw new ApiError(404, 'Referenced team not found.');
 
   let image_url = null;
   let image_public_id = null;
 
   if (req.file) {
-    const result = await uploadToCloudinary(req.file.buffer, 'cricket/players');
-    image_url = result.secure_url;
-    image_public_id = result.public_id;
+    try {
+      const result = await uploadToCloudinary(req.file.buffer, 'cricket/players');
+      image_url = result.secure_url;
+      image_public_id = result.public_id;
+    } catch (err) {
+      console.error(`[Cloudinary] Upload failed: ${err.message}`);
+    }
   }
 
   const player = await Player.create({
-    team_id,
+    team_id: tid,
     name,
-    position,
+    position: pos,
     image_url,
     image_public_id,
   });
@@ -93,10 +107,14 @@ const updatePlayer = asyncHandler(async (req, res) => {
   }
 
   if (req.file) {
-    await deleteFromCloudinary(player.image_public_id);
-    const result = await uploadToCloudinary(req.file.buffer, 'cricket/players');
-    player.image_url = result.secure_url;
-    player.image_public_id = result.public_id;
+    try {
+      await deleteFromCloudinary(player.image_public_id);
+      const result = await uploadToCloudinary(req.file.buffer, 'cricket/players');
+      player.image_url = result.secure_url;
+      player.image_public_id = result.public_id;
+    } catch (err) {
+      console.error(`[Cloudinary] Upload failed: ${err.message}`);
+    }
   }
 
   await player.save();

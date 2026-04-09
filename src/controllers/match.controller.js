@@ -11,22 +11,30 @@ const asyncHandler = require('../utils/asyncHandler');
 // Create an upcoming fixture
 // ---------------------------------------------------------------------------
 const createMatch = asyncHandler(async (req, res) => {
-  const { team_a_id, team_b_id, date, ground } = req.body;
+  const team_a = req.body.team_a_id || req.body.teamA;
+  const team_b = req.body.team_b_id || req.body.teamB;
+  const matchDate = req.body.date;
+  const matchGround = req.body.ground || req.body.venue;
 
-  if (!team_a_id || !team_b_id || !date || !ground) {
-    throw new ApiError(400, 'team_a_id, team_b_id, date, and ground are required.');
+  if (!team_a || !team_b || !matchDate || !matchGround) {
+    throw new ApiError(400, 'Team A, Team B, Date, and Venue are required.');
   }
 
   // Verify both teams exist
   const [teamA, teamB] = await Promise.all([
-    Team.findById(team_a_id),
-    Team.findById(team_b_id),
+    Team.findById(team_a),
+    Team.findById(team_b),
   ]);
 
   if (!teamA) throw new ApiError(404, 'Team A not found.');
   if (!teamB) throw new ApiError(404, 'Team B not found.');
 
-  const match = await Match.create({ team_a_id, team_b_id, date, ground });
+  const match = await Match.create({
+    team_a_id: team_a,
+    team_b_id: team_b,
+    date: matchDate,
+    ground: matchGround
+  });
 
   return res
     .status(201)
@@ -151,6 +159,49 @@ const finalizeMatch = asyncHandler(async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/matches/:id/score
+// Live score updates for an ongoing match
+// ---------------------------------------------------------------------------
+const updateScore = asyncHandler(async (req, res) => {
+  const match = await Match.findById(req.params.id);
+  if (!match) throw new ApiError(404, 'Match not found.');
+
+  const { inningsIndex, runs, wickets, overs, result, status } = req.body;
+
+  if (result !== undefined) {
+    match.result = result;
+  }
+
+  if (status !== undefined) {
+    match.status = status;
+  }
+
+  if (inningsIndex !== undefined && runs !== undefined && wickets !== undefined && overs !== undefined) {
+    // Ensure innings array exists
+    if (!match.scorecard.innings) {
+      match.scorecard.innings = [];
+    }
+
+    // Update or create the innings entry
+    const inningsData = {
+      team_id: inningsIndex === 0 ? match.team_a_id : match.team_b_id,
+      runs,
+      wickets,
+      overs,
+    };
+
+    match.scorecard.innings[inningsIndex] = inningsData;
+    match.status = 'live'; // Automatically mark as live if score is updated
+  }
+
+  await match.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, 'Match score updated.', match)
+  );
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/matches/:id
 // ---------------------------------------------------------------------------
 const deleteMatch = asyncHandler(async (req, res) => {
@@ -167,5 +218,6 @@ module.exports = {
   getAllMatches,
   getMatchById,
   finalizeMatch,
+  updateScore,
   deleteMatch,
 };
