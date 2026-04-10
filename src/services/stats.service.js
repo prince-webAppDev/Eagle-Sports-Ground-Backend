@@ -13,34 +13,58 @@ const Player = require('../models/Player.model');
 const updateCareerStats = async (performances) => {
   if (!performances || performances.length === 0) return;
 
-  // Build bulkWrite operations — one atomic update per player
-  const bulkOps = performances.map((perf) => ({
-    updateOne: {
-      filter: { _id: perf.player_id },
-      update: {
-        $inc: {
-          matches_played: 1,
-          total_runs: perf.runs_scored || 0,
-          total_balls_faced: perf.balls_faced || 0,
-          total_wickets_taken: perf.wickets_taken || 0,
-          total_overs_bowled: perf.overs_bowled || 0,
-          total_runs_conceded: perf.runs_conceded || 0,
-          // Increment dismissal count only if the player was dismissed
-          total_innings_dismissed: perf.was_dismissed ? 1 : 0,
-        },
-        $max: {
-          highest_score: perf.runs_scored || 0,
+  // Group by player_id to aggregate multi-inning stats
+  const playerAggr = {};
+  for (const perf of performances) {
+    const pid = perf.player_id.toString();
+    if (!playerAggr[pid]) {
+      playerAggr[pid] = {
+        runs_scored: 0,
+        balls_faced: 0,
+        wickets_taken: 0,
+        overs_bowled: 0,
+        runs_conceded: 0,
+        was_dismissed: false,
+        max_runs: 0
+      };
+    }
+    playerAggr[pid].runs_scored += perf.runs_scored || 0;
+    playerAggr[pid].balls_faced += perf.balls_faced || 0;
+    playerAggr[pid].wickets_taken += perf.wickets_taken || 0;
+    playerAggr[pid].overs_bowled += perf.overs_bowled || 0;
+    playerAggr[pid].runs_conceded += perf.runs_conceded || 0;
+    if (perf.was_dismissed) playerAggr[pid].was_dismissed = true;
+    if ((perf.runs_scored || 0) > playerAggr[pid].max_runs) {
+      playerAggr[pid].max_runs = perf.runs_scored;
+    }
+  }
+
+  // Build bulkWrite operations from aggregated data
+  const bulkOps = Object.keys(playerAggr).map((pid) => {
+    const stats = playerAggr[pid];
+    return {
+      updateOne: {
+        filter: { _id: pid },
+        update: {
+          $inc: {
+            matches_played: 1,
+            total_runs: stats.runs_scored,
+            total_balls_faced: stats.balls_faced,
+            total_wickets_taken: stats.wickets_taken,
+            total_overs_bowled: stats.overs_bowled,
+            total_runs_conceded: stats.runs_conceded,
+            total_innings_dismissed: stats.was_dismissed ? 1 : 0,
+          },
+          $max: {
+            highest_score: stats.max_runs,
+          },
         },
       },
-    },
-  }));
+    };
+  });
 
-  // bulkWrite executes all operations in a single round-trip to MongoDB
   const result = await Player.bulkWrite(bulkOps, { ordered: false });
-
-  console.log(
-    `[Stats] Career stats updated — ${result.modifiedCount} player(s) updated.`
-  );
+  console.log(`[Stats] Career stats updated — ${result.modifiedCount} player(s) updated.`);
 };
 
 /**

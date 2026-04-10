@@ -25,6 +25,8 @@ const playerPerformanceSchema = new mongoose.Schema(
       ref: 'Player',
       required: true,
     },
+    // Inning number (1 or 2)
+    inning_number: { type: Number, default: 1, min: 1, max: 2 },
     runs_scored: { type: Number, default: 0, min: 0 },
     balls_faced: { type: Number, default: 0, min: 0 },
     fours: { type: Number, default: 0, min: 0 },
