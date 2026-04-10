@@ -55,8 +55,8 @@ const getPublicMatchById = asyncHandler(async (req, res) => {
     return res.status(200).json(
       new ApiResponse(200, 'Match details retrieved.', {
         _id: match._id,
-        team_a: match.team_a_id,
-        team_b: match.team_b_id,
+        team_a_id: match.team_a_id,
+        team_b_id: match.team_b_id,
         date: match.date,
         ground: match.ground,
         status: match.status,
