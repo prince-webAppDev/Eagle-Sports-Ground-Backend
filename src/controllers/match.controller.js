@@ -7,6 +7,29 @@ const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 // ---------------------------------------------------------------------------
+// POST /api/matches
+// Create an upcoming fixture
+// ---------------------------------------------------------------------------
+const createMatch = asyncHandler(async (req, res) => {
+  const { team_a_id, team_b_id, date, ground } = req.body;
+
+  if (!team_a_id || !team_b_id || !date || !ground) {
+    throw new ApiError(400, 'All fields are required.');
+  }
+
+  const match = await Match.create({
+    team_a_id,
+    team_b_id,
+    date,
+    ground
+  });
+
+  return res
+    .status(201)
+    .json(new ApiResponse(201, 'Match fixture created.', match));
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/matches  (admin view — all matches)
 // ---------------------------------------------------------------------------
 const getAllMatches = asyncHandler(async (_req, res) => {
@@ -37,6 +60,39 @@ const getMatchById = asyncHandler(async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/matches/:id/finalize
+// ---------------------------------------------------------------------------
+const finalizeMatch = asyncHandler(async (req, res) => {
+  const match = await Match.findById(req.params.id);
+  if (!match) throw new ApiError(404, 'Match not found.');
+
+  if (match.status === 'Completed') {
+    throw new ApiError(409, 'This match has already been finalized.');
+  }
+
+  const { innings, individual_performances } = req.body;
+
+  if (!innings || !individual_performances) {
+    throw new ApiError(400, 'Innings and player performances are required.');
+  }
+
+  // Derive summary
+  const summary = deriveSummary(individual_performances);
+
+  match.status = 'Completed';
+  match.scorecard.innings = innings;
+  match.scorecard.individual_performances = individual_performances;
+  match.scorecard.summary = summary;
+
+  await match.save();
+  await updateCareerStats(individual_performances);
+
+  return res.status(200).json(
+    new ApiResponse(200, 'Match finalized and stats updated.', match)
+  );
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/matches/:id
 // ---------------------------------------------------------------------------
 const deleteMatch = asyncHandler(async (req, res) => {
@@ -49,7 +105,9 @@ const deleteMatch = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  createMatch,
   getAllMatches,
   getMatchById,
+  finalizeMatch,
   deleteMatch,
 };
