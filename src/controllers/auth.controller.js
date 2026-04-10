@@ -35,35 +35,26 @@ const login = asyncHandler(async (req, res) => {
     throw new ApiError(401, 'Invalid credentials.');
   }
 
-  // OTP logic bypassed and tokens issued directly for a "Single Form" login experience
-  const adminId = admin._id.toString();
-  const last_login = new Date();
-
-  // Issue tokens
-  const accessToken = signAccessToken(adminId);
-  const { token: refreshToken } = signRefreshToken(adminId);
-
-  // Store a hash of the refresh token
-  const hashedRefresh = await bcrypt.hash(refreshToken, 10);
-
-  // Set refresh token in HTTP-Only cookie
-  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+  // Generate 6-digit OTP
+  const otp = generateOtp(6);
+  const expiryMins = 10;
+  const otp_expiry = new Date(Date.now() + expiryMins * 60000);
 
   // Use findByIdAndUpdate to avoid VersionErrors during concurrent saves
-  await Admin.findByIdAndUpdate(adminId, {
-    $set: { last_login },
-    $push: { refresh_tokens: { $each: [hashedRefresh], $slice: -5 } },
+  await Admin.findByIdAndUpdate(admin._id, {
+    $set: { 
+      otp_secret: otp, 
+      otp_expiry: otp_expiry 
+    },
   });
 
+  // Send OTP to ADMIN_EMAIL from .env
+  await sendOtpEmail(otp, expiryMins);
+
   return res.status(200).json(
-    new ApiResponse(200, 'Login successful.', {
-      accessToken,
-      admin: {
-        id: admin._id,
-        username: admin.username,
-        email: admin.email,
-        last_login,
-      },
+    new ApiResponse(200, 'OTP sent to administrator email.', {
+      otpRequired: true,
+      username: admin.username
     })
   );
 });
