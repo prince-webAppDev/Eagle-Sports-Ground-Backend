@@ -7,41 +7,6 @@ const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 // ---------------------------------------------------------------------------
-// POST /api/matches
-// Create an upcoming fixture
-// ---------------------------------------------------------------------------
-const createMatch = asyncHandler(async (req, res) => {
-  const team_a = req.body.team_a_id || req.body.teamA;
-  const team_b = req.body.team_b_id || req.body.teamB;
-  const matchDate = req.body.date;
-  const matchGround = req.body.ground || req.body.venue;
-
-  if (!team_a || !team_b || !matchDate || !matchGround) {
-    throw new ApiError(400, 'Team A, Team B, Date, and Venue are required.');
-  }
-
-  // Verify both teams exist
-  const [teamA, teamB] = await Promise.all([
-    Team.findById(team_a),
-    Team.findById(team_b),
-  ]);
-
-  if (!teamA) throw new ApiError(404, 'Team A not found.');
-  if (!teamB) throw new ApiError(404, 'Team B not found.');
-
-  const match = await Match.create({
-    team_a_id: team_a,
-    team_b_id: team_b,
-    date: matchDate,
-    ground: matchGround
-  });
-
-  return res
-    .status(201)
-    .json(new ApiResponse(201, 'Match fixture created.', match));
-});
-
-// ---------------------------------------------------------------------------
 // GET /api/matches  (admin view — all matches)
 // ---------------------------------------------------------------------------
 const getAllMatches = asyncHandler(async (_req, res) => {
@@ -72,136 +37,6 @@ const getMatchById = asyncHandler(async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/matches/:id/finalize
-//
-// The core admin operation. Admin provides:
-//   - innings: [{ team_id, runs, wickets, overs }]
-//   - individual_performances: [{ player_id, runs_scored, balls_faced,
-//       fours, sixes, wickets_taken, overs_bowled, runs_conceded, was_dismissed }]
-//
-// This endpoint:
-//   1. Validates all player IDs belong to the match's teams
-//   2. Derives summary (highest scorer, best bowler, total 4s/6s)
-//   3. Saves the full scorecard and marks match Completed
-//   4. Atomically updates career stats for every player via bulkWrite
-// ---------------------------------------------------------------------------
-const finalizeMatch = asyncHandler(async (req, res) => {
-  const match = await Match.findById(req.params.id);
-  if (!match) throw new ApiError(404, 'Match not found.');
-
-  if (match.status === 'Completed') {
-    throw new ApiError(409, 'This match has already been finalized.');
-  }
-
-  const { innings, individual_performances } = req.body;
-
-  if (!innings || !Array.isArray(innings) || innings.length === 0) {
-    throw new ApiError(400, 'innings array is required.');
-  }
-  if (
-    !individual_performances ||
-    !Array.isArray(individual_performances) ||
-    individual_performances.length === 0
-  ) {
-    throw new ApiError(400, 'individual_performances array is required.');
-  }
-
-  // Validate that all players in performances belong to this match's teams
-  const matchTeamIds = [
-    match.team_a_id.toString(),
-    match.team_b_id.toString(),
-  ];
-
-  const playerIds = individual_performances.map((p) => p.player_id);
-  const players = await Player.find({ _id: { $in: playerIds } }).select(
-    'team_id'
-  );
-
-  const playerIdSet = new Set(players.map((p) => p._id.toString()));
-
-  for (const perf of individual_performances) {
-    if (!playerIdSet.has(perf.player_id.toString())) {
-      throw new ApiError(
-        404,
-        `Player with ID ${perf.player_id} not found.`
-      );
-    }
-  }
-
-  const invalidPlayers = players.filter(
-    (p) => !matchTeamIds.includes(p.team_id.toString())
-  );
-
-  if (invalidPlayers.length > 0) {
-    throw new ApiError(
-      400,
-      `Some players do not belong to the teams in this match.`
-    );
-  }
-
-  // Derive summary from performances
-  const summary = deriveSummary(individual_performances);
-
-  // Update the match document
-  match.status = 'Completed';
-  match.scorecard.innings = innings;
-  match.scorecard.individual_performances = individual_performances;
-  match.scorecard.summary = summary;
-
-  await match.save();
-
-  // Atomically update each player's career statistics
-  await updateCareerStats(individual_performances);
-
-  return res.status(200).json(
-    new ApiResponse(200, 'Match finalized and player statistics updated.', match)
-  );
-});
-
-// ---------------------------------------------------------------------------
-// PATCH /api/matches/:id/score
-// Live score updates for an ongoing match
-// ---------------------------------------------------------------------------
-const updateScore = asyncHandler(async (req, res) => {
-  const match = await Match.findById(req.params.id);
-  if (!match) throw new ApiError(404, 'Match not found.');
-
-  const { inningsIndex, runs, wickets, overs, result, status } = req.body;
-
-  if (result !== undefined) {
-    match.result = result;
-  }
-
-  if (status !== undefined) {
-    match.status = status;
-  }
-
-  if (inningsIndex !== undefined && runs !== undefined && wickets !== undefined && overs !== undefined) {
-    // Ensure innings array exists
-    if (!match.scorecard.innings) {
-      match.scorecard.innings = [];
-    }
-
-    // Update or create the innings entry
-    const inningsData = {
-      team_id: inningsIndex === 0 ? match.team_a_id : match.team_b_id,
-      runs,
-      wickets,
-      overs,
-    };
-
-    match.scorecard.innings[inningsIndex] = inningsData;
-    match.status = 'live'; // Automatically mark as live if score is updated
-  }
-
-  await match.save();
-
-  return res.status(200).json(
-    new ApiResponse(200, 'Match score updated.', match)
-  );
-});
-
-// ---------------------------------------------------------------------------
 // DELETE /api/matches/:id
 // ---------------------------------------------------------------------------
 const deleteMatch = asyncHandler(async (req, res) => {
@@ -214,10 +49,7 @@ const deleteMatch = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  createMatch,
   getAllMatches,
   getMatchById,
-  finalizeMatch,
-  updateScore,
   deleteMatch,
 };
