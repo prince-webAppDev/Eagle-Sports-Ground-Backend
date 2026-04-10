@@ -104,10 +104,29 @@ const deleteMatch = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, 'Match deleted successfully.'));
 });
 
+// ---------------------------------------------------------------------------
+// PATCH /api/matches/:id
+// Update basic match details
+// ---------------------------------------------------------------------------
+const updateMatch = asyncHandler(async (req, res) => {
+  const { date, ground } = req.body;
+
+  const match = await Match.findByIdAndUpdate(
+    req.params.id,
+    { date, ground },
+    { new: true, runValidators: true }
+  );
+
+  if (!match) throw new ApiError(404, 'Match not found.');
+
+  return res.status(200).json(new ApiResponse(200, 'Match updated.', match));
+});
+
 module.exports = {
   createMatch,
   getAllMatches,
   getMatchById,
+  updateMatch,
   finalizeMatch,
   deleteMatch,
 };
