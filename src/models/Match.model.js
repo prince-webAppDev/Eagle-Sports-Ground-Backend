@@ -108,6 +108,14 @@ const matchSchema = new mongoose.Schema(
       },
       default: 'Upcoming',
     },
+    startTime: {
+      type: String,
+      trim: true,
+    },
+    umpires: {
+      type: [String],
+      default: [],
+    },
     scorecard: {
       type: scorecardSchema,
       default: () => ({}),

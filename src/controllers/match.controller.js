@@ -11,7 +11,7 @@ const asyncHandler = require('../utils/asyncHandler');
 // Create an upcoming fixture
 // ---------------------------------------------------------------------------
 const createMatch = asyncHandler(async (req, res) => {
-  const { team_a_id, team_b_id, date, ground } = req.body;
+  const { team_a_id, team_b_id, date, ground, startTime, umpires } = req.body;
 
   if (!team_a_id || !team_b_id || !date || !ground) {
     throw new ApiError(400, 'All fields are required.');
@@ -21,7 +21,9 @@ const createMatch = asyncHandler(async (req, res) => {
     team_a_id,
     team_b_id,
     date,
-    ground
+    ground,
+    startTime,
+    umpires
   });
 
   return res
@@ -66,9 +68,8 @@ const finalizeMatch = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id);
   if (!match) throw new ApiError(404, 'Match not found.');
 
-  if (match.status === 'Completed') {
-    throw new ApiError(409, 'This match has already been finalized.');
-  }
+  // Allow re-finalizing to support editing mistakes
+  const isUpdate = match.status === 'Completed';
 
   const { innings, individual_performances } = req.body;
 
