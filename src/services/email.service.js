@@ -1,41 +1,32 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 /**
- * Creates a reusable Nodemailer transporter using SMTP credentials
- * from environment variables. The transporter is created once and
- * reused across all email calls (singleton pattern).
+ * Creates a singleton Resend client using the API key
+ * from environment variables.
  */
-let transporter = null;
+let resend = null;
 
-const getTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: Number(process.env.SMTP_PORT) === 465, // true for port 465, false for others
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+const getResendClient = () => {
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
   }
-  return transporter;
+  return resend;
 };
 
 /**
- * Sends a 6-digit OTP to the admin email address.
+ * Sends a 6-digit OTP to the admin email address using Resend.
  *
  * @param {string} otp          - The plain-text OTP to send
  * @param {number} expiryMins   - How many minutes until OTP expires (for display)
  * @returns {Promise<void>}
  */
 const sendOtpEmail = async (otp, expiryMins = 10) => {
-  const transport = getTransporter();
+  const client = getResendClient();
   const recipient = process.env.ADMIN_EMAIL;
 
-  const mailOptions = {
-    from: `"Cricket Admin System" <${process.env.SMTP_USER}>`,
-    to: recipient,
+  const { error } = await client.emails.send({
+    from: 'Cricket Admin System <onboarding@resend.dev>',
+    to: [recipient],
     subject: 'Your Admin Login OTP',
     text: `Your one-time password is: ${otp}\n\nThis OTP expires in ${expiryMins} minutes.\n\nIf you did not request this, please ignore.`,
     html: `
@@ -53,9 +44,12 @@ const sendOtpEmail = async (otp, expiryMins = 10) => {
         <p style="color: #5f6368;">If you did not request this login, please ignore this email.</p>
       </div>
     `,
-  };
+  });
 
-  await transport.sendMail(mailOptions);
+  if (error) {
+    console.error('[Resend] Failed to send OTP email:', error);
+    throw new Error(`Failed to send OTP email: ${error.message}`);
+  }
 };
 
 module.exports = { sendOtpEmail };

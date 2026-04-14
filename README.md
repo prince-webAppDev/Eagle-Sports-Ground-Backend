@@ -12,7 +12,7 @@ A complete Node.js/Express REST API for managing cricket events, teams, players,
 | Framework | Express 4 |
 | Database | MongoDB (Mongoose 8) |
 | Media | Cloudinary |
-| Auth | JWT (access + refresh) + Nodemailer OTP |
+| Auth | JWT (access + refresh) + Resend OTP |
 | Security | Helmet, CORS, express-rate-limit |
 
 ---
@@ -47,7 +47,7 @@ src/
 │   ├── match.routes.js
 │   └── public.routes.js
 ├── services/
-│   ├── email.service.js      # Nodemailer OTP sender
+│   ├── email.service.js      # Resend OTP sender
 │   ├── stats.service.js      # Career stat automation (bulkWrite)
 │   └── cloudinary.service.js # Upload/delete via stream
 ├── utils/
@@ -86,7 +86,7 @@ cp .env.example .env
 | `ACCESS_TOKEN_SECRET` | Strong random string (≥64 chars) |
 | `REFRESH_TOKEN_SECRET` | Different strong random string (≥64 chars) |
 | `ADMIN_EMAIL` | Email address where OTPs are delivered |
-| `SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS` | SMTP credentials (Gmail App Password recommended) |
+| `RESEND_API_KEY` | API key from [resend.com](https://resend.com) |
 | `CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET` | Cloudinary project credentials |
 
 ### 3. Seed the admin account (run once)
