@@ -23,8 +23,8 @@ const getPublicMatches = asyncHandler(async (req, res) => {
 
   const matches = await Match.find(filter)
     .select('team_a_id team_b_id date ground status createdAt')
-    .populate('team_a_id', 'name logo_url')
-    .populate('team_b_id', 'name logo_url')
+    .populate('team_a_id', 'name short_name logo_url')
+    .populate('team_b_id', 'name short_name logo_url')
     .sort({ date: -1 });
 
   return res
@@ -38,17 +38,27 @@ const getPublicMatches = asyncHandler(async (req, res) => {
 // ---------------------------------------------------------------------------
 const getPublicMatchById = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id)
-    .populate('team_a_id', 'name logo_url')
-    .populate('team_b_id', 'name logo_url')
+    .populate('team_a_id', 'name short_name logo_url')
+    .populate('team_b_id', 'name short_name logo_url')
     .populate(
       'scorecard.individual_performances.player_id',
       'name position image_url'
     )
     .populate('scorecard.summary.highest_scorer', 'name image_url')
     .populate('scorecard.summary.best_bowler', 'name image_url')
-    .populate('scorecard.innings.team_id', 'name');
+    .populate('scorecard.innings.team_id', 'name short_name');
 
   if (!match) throw new ApiError(404, 'Match not found.');
+
+  // Fetch players for both teams
+  const [teamAPlayers, teamBPlayers] = await Promise.all([
+    Player.find({ team_id: match.team_a_id._id })
+      .select('name position image_url')
+      .sort({ name: 1 }),
+    Player.find({ team_id: match.team_b_id._id })
+      .select('name position image_url')
+      .sort({ name: 1 }),
+  ]);
 
   if (match.status !== 'Completed') {
     // Return limited data for upcoming matches
@@ -60,13 +70,19 @@ const getPublicMatchById = asyncHandler(async (req, res) => {
         date: match.date,
         ground: match.ground,
         status: match.status,
+        teamAPlayers,
+        teamBPlayers,
       })
     );
   }
 
+  const matchObj = match.toObject();
+  matchObj.teamAPlayers = teamAPlayers;
+  matchObj.teamBPlayers = teamBPlayers;
+
   return res
     .status(200)
-    .json(new ApiResponse(200, 'Match scorecard retrieved.', match));
+    .json(new ApiResponse(200, 'Match scorecard retrieved.', matchObj));
 });
 
 // ---------------------------------------------------------------------------
